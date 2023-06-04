@@ -1,4 +1,5 @@
-use super::Error;
+use crate::Reset;
+
 use super::Watchdog;
 use std::time::Duration;
 use tokio::time::Instant;
@@ -15,7 +16,7 @@ async fn spawn_watchdog() {
 
     for _ in 0..100 {
         tokio::time::sleep(Duration::from_millis(500)).await;
-        Watchdog::reset(&reset_tx).await.unwrap();
+        reset_tx.send(Reset::Signal).await.unwrap();
     }
 
     // Let the watchdog expire.
@@ -25,8 +26,5 @@ async fn spawn_watchdog() {
     // Post conditions.
     assert_elapsed!(now, Duration::from_secs(1));
 
-    assert!(matches!(
-        Watchdog::reset(&reset_tx).await,
-        Err(Error::Inactive)
-    ));
+    assert!(matches!(reset_tx.send(Reset::Signal).await, Err(_)));
 }

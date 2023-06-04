@@ -1,15 +1,16 @@
-use erro::Error;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::{Duration, Instant};
-
-mod erro;
 
 #[cfg(test)]
 mod test;
 
 /// Signal for resetting the watchdog.
 #[derive(Debug)]
-pub struct Reset;
+pub enum Reset {
+    Start,
+    Signal,
+    Stop,
+}
 
 /// Signal on watchdog expire.
 #[derive(Debug)]
@@ -43,28 +44,30 @@ impl Watchdog {
     async fn run(self, mut reset: mpsc::Receiver<Reset>, expired: oneshot::Sender<Expired>) {
         let sleep = tokio::time::sleep(self.duration);
         tokio::pin!(sleep);
+        let mut active = true;
         loop {
             tokio::select! {
                 msg = reset.recv() => {
                     match msg {
-                        Some(_) => sleep.as_mut().reset(Instant::now() + self.duration),
+                        Some(Reset::Start) => {
+                            sleep.as_mut().reset(Instant::now() + self.duration);
+                            active = true;
+                        }
+                        Some(Reset::Signal) =>{
+                            sleep.as_mut().reset(Instant::now() + self.duration);
+                            active=true;
+                        }
+                        Some(Reset::Stop) => {
+                            active = false;
+                        }
                         None => break,
                     }
                 }
-                _ = sleep.as_mut() => {
+                _ = sleep.as_mut(), if active => {
                     let _ = expired.send(Expired);
                     break;
                 },
             }
         }
-    }
-
-    /// Reset the watchdog attached to `reset_tx`.
-    ///
-    /// # Errors
-    ///
-    /// If the watchdog is inactive, Err([`Error::Inactive`]) is returned.
-    pub async fn reset(reset_tx: &mpsc::Sender<Reset>) -> Result<(), Error> {
-        reset_tx.send(Reset).await.map_err(|_| Error::Inactive)
     }
 }
