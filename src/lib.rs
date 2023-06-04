@@ -13,7 +13,7 @@ pub struct Reset;
 
 /// Signal on watchdog expire.
 #[derive(Debug)]
-pub struct Elapsed;
+pub struct Expired;
 
 /// Watchdog holding the fixed duration.
 pub struct Watchdog {
@@ -30,17 +30,17 @@ impl Watchdog {
 
     /// Spawn the watchdog actor.
     ///
-    /// Returns the `reset_tx` and `elapsed_rx` needed for communicating with the watchdog.
+    /// Returns the `reset_tx` and `expired_rx` needed for communicating with the watchdog.
     #[must_use]
-    pub fn spawn(self) -> (mpsc::Sender<Reset>, oneshot::Receiver<Elapsed>) {
+    pub fn spawn(self) -> (mpsc::Sender<Reset>, oneshot::Receiver<Expired>) {
         let (reset_tx, reset_rx) = mpsc::channel(16);
-        let (elapsed_tx, elapsed_rx) = oneshot::channel();
-        tokio::spawn(self.run(reset_rx, elapsed_tx));
-        (reset_tx, elapsed_rx)
+        let (expired_tx, expired_rx) = oneshot::channel();
+        tokio::spawn(self.run(reset_rx, expired_tx));
+        (reset_tx, expired_rx)
     }
 
     /// Start the watchdog actor.
-    async fn run(self, mut reset: mpsc::Receiver<Reset>, elapsed: oneshot::Sender<Elapsed>) {
+    async fn run(self, mut reset: mpsc::Receiver<Reset>, expired: oneshot::Sender<Expired>) {
         let sleep = tokio::time::sleep(self.duration);
         tokio::pin!(sleep);
         loop {
@@ -52,7 +52,7 @@ impl Watchdog {
                     }
                 }
                 _ = sleep.as_mut() => {
-                    let _ = elapsed.send(Elapsed);
+                    let _ = expired.send(Expired);
                     break;
                 },
             }
