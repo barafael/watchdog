@@ -6,9 +6,8 @@ mod test;
 
 /// Signal for resetting the watchdog.
 #[derive(Debug)]
-pub enum Reset {
-    Start,
-    Signal,
+pub enum Signal {
+    Reset,
     Stop,
 }
 
@@ -31,35 +30,33 @@ impl Watchdog {
 
     /// Spawn the watchdog actor.
     ///
-    /// Returns the `reset_tx` and `expired_rx` needed for communicating with the watchdog.
+    /// Returns the `watchdog` and `expiration` channels needed for communicating with the watchdog.
     #[must_use]
-    pub fn spawn(self) -> (mpsc::Sender<Reset>, oneshot::Receiver<Expired>) {
-        let (reset_tx, reset_rx) = mpsc::channel(16);
-        let (expired_tx, expired_rx) = oneshot::channel();
-        tokio::spawn(self.run(reset_rx, expired_tx));
-        (reset_tx, expired_rx)
+    pub fn run(self) -> (mpsc::Sender<Signal>, oneshot::Receiver<Expired>) {
+        let (watchdog, watchdog_rx) = mpsc::channel(16);
+        let (expiration_tx, expiration) = oneshot::channel();
+        tokio::spawn(self.event_loop(watchdog_rx, expiration_tx));
+        (watchdog, expiration)
     }
 
-    /// Start the watchdog actor.
-    async fn run(self, mut reset: mpsc::Receiver<Reset>, expired: oneshot::Sender<Expired>) {
+    /// Run the watchdog event loop. This should be allowed to run in parallel to avoid starvation.
+    async fn event_loop(
+        self,
+        mut signal: mpsc::Receiver<Signal>,
+        expired: oneshot::Sender<Expired>,
+    ) {
         let sleep = tokio::time::sleep(self.duration);
         tokio::pin!(sleep);
         let mut active = true;
         loop {
             tokio::select! {
-                msg = reset.recv() => {
+                msg = signal.recv() => {
                     match msg {
-                        Some(Reset::Start) => {
+                        Some(Signal::Reset) => {
                             sleep.as_mut().reset(Instant::now() + self.duration);
                             active = true;
                         }
-                        Some(Reset::Signal) =>{
-                            sleep.as_mut().reset(Instant::now() + self.duration);
-                            active=true;
-                        }
-                        Some(Reset::Stop) => {
-                            active = false;
-                        }
+                        Some(Signal::Stop) => active = false,
                         None => break,
                     }
                 }

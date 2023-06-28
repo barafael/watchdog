@@ -1,22 +1,21 @@
-use crate::Reset;
+use crate::Signal;
 
 use super::Watchdog;
 use std::time::Duration;
 use tokio::time::Instant;
 use tokio_test::assert_elapsed;
 
-#[tokio::test]
-async fn spawn_watchdog() {
+#[tokio::test(start_paused = true)]
+async fn watchdog_() {
     // Pre-conditions.
-    tokio::time::pause();
-    let wdg = Watchdog::with_timeout(Duration::from_secs(1));
+    let watchdog = Watchdog::with_timeout(Duration::from_secs(1));
 
     // Actions.
-    let (reset_tx, elapsed_rx) = wdg.spawn();
+    let (watchdog, elapsed_rx) = watchdog.run();
 
     for _ in 0..100 {
         tokio::time::sleep(Duration::from_millis(500)).await;
-        reset_tx.send(Reset::Signal).await.unwrap();
+        watchdog.send(Signal::Reset).await.unwrap();
     }
 
     // Let the watchdog expire.
@@ -26,5 +25,5 @@ async fn spawn_watchdog() {
     // Post conditions.
     assert_elapsed!(now, Duration::from_secs(1));
 
-    assert!(matches!(reset_tx.send(Reset::Signal).await, Err(_)));
+    assert!(watchdog.send(Signal::Reset).await.is_err());
 }
