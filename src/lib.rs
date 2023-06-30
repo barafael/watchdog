@@ -1,11 +1,15 @@
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::{Duration, Instant};
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 #[cfg(test)]
 mod test;
 
 /// Signal for resetting the watchdog.
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Signal {
     Reset,
     Stop,
@@ -13,6 +17,7 @@ pub enum Signal {
 
 /// Signal on watchdog expire.
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Expired;
 
 /// Watchdog holding the fixed duration.
