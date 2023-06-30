@@ -4,13 +4,18 @@ use tokio::time::{Duration, Instant};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "cli")]
+use clap::ValueEnum;
+
 #[cfg(test)]
 mod test;
 
 /// Signal for resetting the watchdog.
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "cli", derive(ValueEnum))]
 pub enum Signal {
+    #[default]
     Reset,
     Stop,
 }
