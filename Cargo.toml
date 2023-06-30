@@ -11,7 +11,7 @@ cli = ["dep:clap"]
 tokio-test = "0.4.2"
 
 [dependencies]
-anyhow = "1.0.71"
-clap = { version = "4.3.10", features = ["derive"], optional = true }
-serde = { version = "1.0.164", features = ["derive"], optional = true }
-tokio = { version = "1.28.2", features = ["full"] }
+anyhow = "1"
+clap = { version = "3", features = ["derive"], optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
+tokio = { version = "1", features = ["full"] }
