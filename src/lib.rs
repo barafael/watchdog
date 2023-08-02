@@ -1,5 +1,5 @@
 use tokio::sync::{mpsc, oneshot};
-use tokio::time::{Duration, Instant};
+use tokio::time::{sleep, Duration, Instant};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -10,7 +10,7 @@ use clap::{Parser, ValueEnum};
 #[cfg(test)]
 mod test;
 
-/// Signal for resetting the watchdog.
+/// Signal for interacting with the watchdog.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "cli", derive(ValueEnum, Parser))]
@@ -20,12 +20,13 @@ pub enum Signal {
     Stop,
 }
 
-/// Signal on watchdog expire.
-#[derive(Debug)]
+/// Signal on watchdog expiration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Expired;
 
 /// Watchdog holding the fixed duration.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Watchdog {
     /// The timeout interval.
     duration: Duration,
@@ -40,38 +41,42 @@ impl Watchdog {
 
     /// Spawn the watchdog actor.
     ///
-    /// Returns the `watchdog` and `expiration` channels needed for communicating with the watchdog.
+    /// Returns the `reset_tx` and `expire_tx` channels needed for communicating with the watchdog.
     #[must_use]
     pub fn run(self) -> (mpsc::Sender<Signal>, oneshot::Receiver<Expired>) {
-        let (watchdog, watchdog_rx) = mpsc::channel(16);
-        let (expiration_tx, expiration) = oneshot::channel();
-        tokio::spawn(self.event_loop(watchdog_rx, expiration_tx));
-        (watchdog, expiration)
+        let (reset_tx, reset_rx) = mpsc::channel(16);
+        let (expire_tx, expire_rx) = oneshot::channel();
+        tokio::spawn(self.event_loop(reset_rx, expire_tx));
+        (reset_tx, expire_rx)
     }
 
-    /// Run the watchdog event loop. This should be allowed to run in parallel to avoid starvation.
+    /// Run the watchdog event loop.
     async fn event_loop(
         self,
-        mut signal: mpsc::Receiver<Signal>,
-        expired: oneshot::Sender<Expired>,
+        mut reset_rx: mpsc::Receiver<Signal>,
+        expire_tx: oneshot::Sender<Expired>,
     ) {
-        let sleep = tokio::time::sleep(self.duration);
+        let sleep = sleep(self.duration);
         tokio::pin!(sleep);
         let mut active = true;
         loop {
             tokio::select! {
-                msg = signal.recv() => {
+                msg = reset_rx.recv() => {
                     match msg {
+                        // on reset: set active, restart sleep.
                         Some(Signal::Reset) => {
-                            sleep.as_mut().reset(Instant::now() + self.duration);
                             active = true;
+                            sleep.as_mut().reset(Instant::now() + self.duration);
                         }
+                        // on stop: mark watchdog as not active.
                         Some(Signal::Stop) => active = false,
+                        // on channel close: exit watchdog.
                         None => break,
                     }
                 }
                 _ = sleep.as_mut(), if active => {
-                    let _ = expired.send(Expired);
+                    // on sleep expiry: use up `expire_tx`, then exit.
+                    let _ = expire_tx.send(Expired);
                     break;
                 },
             }
