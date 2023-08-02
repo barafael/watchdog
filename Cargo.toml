@@ -1,7 +1,11 @@
 [package]
-name = "watchdog"
+name = "simple-tokio-watchdog"
 version = "0.1.0"
 edition = "2021"
+authors = ["rafael bachmann <rafael.bachmann.93@gmail.com>"]
+license = "Apache-2.0"
+repository = "https://www.github.com/barafael/watchdog"
+description = "Pretty simple but bulletproof watchdog actor."
 
 [features]
 serde = ["dep:serde"]
