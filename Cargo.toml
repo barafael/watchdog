@@ -9,6 +9,7 @@ cli = ["dep:clap"]
 
 [dev-dependencies]
 tokio-test = "0.4.2"
+tokio = { version = "1", features = ["full"] }
 
 [dependencies]
 clap = { version = "3", features = ["derive"], optional = true }

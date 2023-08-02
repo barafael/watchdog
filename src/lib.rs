@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::{sleep, Duration, Instant};
 
