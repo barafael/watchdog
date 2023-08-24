@@ -6,7 +6,7 @@ Send reset signals on the mpsc sender at a fast enough rate, or else the expirat
 
 ```rust
 use tokio::select;
-use watchdog::{Signal, Watchdog};
+use simple_tokio_watchdog::{Signal, Watchdog};
 use std::time::Duration;
 
 #[tokio::main]
