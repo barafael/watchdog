@@ -76,7 +76,7 @@ impl Watchdog {
                         None => break,
                     }
                 }
-                _ = sleep.as_mut(), if active => {
+                () = sleep.as_mut(), if active => {
                     // on sleep expiry: use up `expire_tx`, then exit.
                     let _ = expire_tx.send(Expired);
                     break;
