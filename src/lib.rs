@@ -41,23 +41,18 @@ impl Watchdog {
         Self { duration }
     }
 
-    /// Spawn the watchdog actor.
-    ///
-    /// Returns the `reset_tx` and `expire_tx` channels needed for communicating with the watchdog.
-    #[must_use]
-    pub fn run(self) -> (mpsc::Sender<Signal>, oneshot::Receiver<Expired>) {
-        let (reset_tx, reset_rx) = mpsc::channel(16);
-        let (expire_tx, expire_rx) = oneshot::channel();
-        tokio::spawn(self.event_loop(reset_rx, expire_tx));
-        (reset_tx, expire_rx)
-    }
-
     /// Run the watchdog event loop.
-    async fn event_loop(
+    ///
+    /// Spawning is left to the caller: `tokio::spawn` it, `.await` it
+    /// directly, or put it in a `JoinSet`. The loop exits when the sleep
+    /// expires (after sending [`Expired`] on `expire_tx`) or when every
+    /// `reset_tx` sender is dropped. It hands the watchdog back on exit, so
+    /// restarting it means making new channels and running the loop again.
+    pub async fn event_loop(
         self,
         mut reset_rx: mpsc::Receiver<Signal>,
         expire_tx: oneshot::Sender<Expired>,
-    ) {
+    ) -> Self {
         let sleep = sleep(self.duration);
         tokio::pin!(sleep);
         let mut active = true;
@@ -83,5 +78,6 @@ impl Watchdog {
                 },
             }
         }
+        self
     }
 }
